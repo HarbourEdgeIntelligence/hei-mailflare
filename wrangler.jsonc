@@ -1,9 +1,21 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "mailflare",
+	"name": "hei-mailflare",
+	"account_id": "a12823016aa16d0a8dd2678b258bd751",
 	"main": "./worker.ts",
 	"compatibility_date": "2026-05-20",
 	"keep_vars": true,
+	// No workers.dev URL; the app is served only on the custom domains below.
+	"workers_dev": false,
+	"preview_urls": false,
+	"routes": [
+		{ "pattern": "mailflare.hei.dev", "custom_domain": true },
+	],
+	"vars": {
+		// Must match the Worker name: Email Routing rules target this Worker.
+		"CF_EMAIL_WORKER_NAME": "hei-mailflare",
+		"APP_URL": "https://mailflare.hei.dev",
+	},
 	"compatibility_flags": [
 		"nodejs_compat",
 		"global_fetch_strictly_public"
@@ -18,7 +30,7 @@
 	"services": [
 		{
 			"binding": "WORKER_SELF_REFERENCE",
-			"service": "mailflare",
+			"service": "hei-mailflare",
 		},
 	],
 	"durable_objects": {
@@ -75,48 +87,49 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "mailflare",
+			"database_name": "hei-mailflare",
+			"database_id": "41e30cc6-3ba6-499a-ab3e-c82c33d4c2ce",
 			"migrations_dir": "drizzle/migrations",
 		},
 	],
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",
-			"bucket_name": "mailflare-raw",
+			"bucket_name": "hei-mailflare-raw",
 		},
 	],
 	"queues": {
 		"producers": [
 			{
 				"binding": "INBOUND_QUEUE",
-				"queue": "mailflare-inbound",
+				"queue": "hei-mailflare-inbound",
 			},
 			{
 				"binding": "OUTBOUND_QUEUE",
-				"queue": "mailflare-outbound",
+				"queue": "hei-mailflare-outbound",
 			},
 			{
 				"binding": "AGENT_QUEUE",
-				"queue": "mailflare-agent",
+				"queue": "hei-mailflare-agent",
 			},
 		],
 		"consumers": [
 			{
-				"queue": "mailflare-inbound",
+				"queue": "hei-mailflare-inbound",
 				"max_batch_size": 5,
 				// New mail should reach the inbox at once; do not wait up to 5 s for a batch to fill.
 				"max_batch_timeout": 1,
 				"max_retries": 3,
 			},
 			{
-				"queue": "mailflare-outbound",
+				"queue": "hei-mailflare-outbound",
 				"max_batch_size": 5,
 				// Sends wait out the undo window already; do not also wait for a batch to fill.
 				"max_batch_timeout": 1,
 				"max_retries": 3,
 			},
 			{
-				"queue": "mailflare-agent",
+				"queue": "hei-mailflare-agent",
 				"max_batch_size": 1,
 				"max_retries": 3,
 			},
