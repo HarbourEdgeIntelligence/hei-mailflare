@@ -9,12 +9,15 @@
 	"workers_dev": false,
 	"preview_urls": false,
 	"routes": [
+		{ "pattern": "mail.hei.dev", "custom_domain": true },
+		{ "pattern": "mail.harbouredgeintelligence.com.au", "custom_domain": true },
+		// Temporary hostname from the migration; remove once nothing links to it.
 		{ "pattern": "mailflare.hei.dev", "custom_domain": true },
 	],
 	"vars": {
 		// Must match the Worker name: Email Routing rules target this Worker.
 		"CF_EMAIL_WORKER_NAME": "hei-mailflare",
-		"APP_URL": "https://mailflare.hei.dev",
+		"APP_URL": "https://mail.hei.dev",
 	},
 	"compatibility_flags": [
 		"nodejs_compat",
