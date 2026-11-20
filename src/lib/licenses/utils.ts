@@ -1,4 +1,5 @@
-import type { LicensePlan, LicenseState, PaymugLicenseResponse } from "./types";
+import type { licenseSettings } from "@/db/schema";
+import type { LicensePlan, LicenseState, LicenseStatus, PaymugLicenseResponse } from "./types";
 import { LICENSE_PRODUCT_IDS } from "./constants";
 
 export async function hashLicenseKey(licenseKey: string): Promise<string> {
@@ -48,4 +49,23 @@ export function normalizeLicensePlan(productId: string | undefined, plan: string
 
 	const normalized = plan?.trim().toLowerCase();
 	return normalized === "pro" || normalized === "team" ? normalized : null;
+}
+
+/**
+ * HEI fork: every installation runs as an active, unlimited Team license, so the
+ * Pro and Team features work without a Paymug key. The stored key state is kept
+ * for display only.
+ */
+export function toLicenseStatus(settings: typeof licenseSettings.$inferSelect): LicenseStatus {
+	return {
+		plan: "team",
+		state: settings.state,
+		features: parseFeatures(settings.features),
+		seatLimit: null,
+		instanceId: settings.instanceId,
+		instanceUrl: settings.instanceUrl,
+		active: true,
+		activatedAt: settings.activatedAt,
+		validatedAt: settings.validatedAt,
+	};
 }

@@ -5,7 +5,7 @@ import { licenseSettings } from "@/db/schema";
 import { LICENSE_PRODUCT_IDS } from "./constants";
 import { callPaymugLicenseApi } from "./paymug";
 import type { LicenseEntitlements, LicensePlan, LicenseStatus, PaymugLicenseAction } from "./types";
-import { hashLicenseKey, normalizeLicensePlan, parseFeatures } from "./utils";
+import { hashLicenseKey, normalizeLicensePlan, toLicenseStatus } from "./utils";
 
 const LICENSE_SETTINGS_ID = "default";
 
@@ -31,21 +31,6 @@ async function getOrCreateLicenseSettings(env: CloudflareEnv) {
 		.limit(1);
 	if (!settings) throw new Error("Unable to initialize license settings");
 	return settings;
-}
-
-function toLicenseStatus(settings: typeof licenseSettings.$inferSelect): LicenseStatus {
-	const active = settings.state === "active" && (settings.plan === "pro" || settings.plan === "team");
-	return {
-		plan: active ? settings.plan : "community",
-		state: settings.state,
-		features: parseFeatures(settings.features),
-		seatLimit: active && settings.plan === "pro" ? settings.seatLimit : null,
-		instanceId: settings.instanceId,
-		instanceUrl: settings.instanceUrl,
-		active,
-		activatedAt: settings.activatedAt,
-		validatedAt: settings.validatedAt,
-	};
 }
 
 export async function getLicenseStatus(env: CloudflareEnv): Promise<LicenseStatus> {
