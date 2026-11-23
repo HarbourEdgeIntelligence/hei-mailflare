@@ -6,6 +6,12 @@ import { normalizeRecipientLocalPart } from "@/lib/email/recipient-address";
 import type { MailboxDomainAddressInput } from "./domain-addresses-types";
 import type { CfEmailRoutingRuleChange } from "@/lib/cloudflare-api.types";
 
+/**
+ * HEI fork: a new mailbox owns its address on its own domain only. Claiming the
+ * local part on every domain collides with addresses that already route elsewhere.
+ */
+export const NEW_MAILBOX_USE_ALL_DOMAINS = false;
+
 export async function getMailboxAliasAddresses(
 	db: AppDatabase,
 	mailboxId: string,

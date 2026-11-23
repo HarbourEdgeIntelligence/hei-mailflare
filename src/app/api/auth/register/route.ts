@@ -13,7 +13,7 @@ import { addDomainForUser } from "@/lib/domains/service";
 import { rollbackDomainProvisioning } from "@/lib/domains/rollback";
 import type { DomainProvisioningChanges } from "@/lib/domains/types";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
-import { ensureMailboxDomainRouting } from "@/lib/mailboxes/domain-addresses";
+import { NEW_MAILBOX_USE_ALL_DOMAINS, ensureMailboxDomainRouting } from "@/lib/mailboxes/domain-addresses";
 import { readJsonBody } from "@/lib/http/request";
 import { RequestBodyTooLargeError } from "@/lib/http/errors";
 import { verifyTurnstileToken } from "@/lib/auth/turnstile";
@@ -106,8 +106,9 @@ export async function POST(request: Request) {
 			domainId: domain.id,
 			localPart: username,
 			displayName: username,
+			useAllDomains: NEW_MAILBOX_USE_ALL_DOMAINS,
 		});
-		await ensureMailboxDomainRouting(env, db, { id: mailboxId, domainId: domain.id, localPart: username, useAllDomains: true });
+		await ensureMailboxDomainRouting(env, db, { id: mailboxId, domainId: domain.id, localPart: username, useAllDomains: NEW_MAILBOX_USE_ALL_DOMAINS });
 	} catch (err) {
 		if (changes) await rollbackDomainProvisioning(env, changes);
 		try {

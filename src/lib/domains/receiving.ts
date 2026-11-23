@@ -51,7 +51,7 @@ export async function setupCloudflareReceiving(env: CloudflareEnv, skippedDomain
 		.innerJoin(domains, eq(mailboxes.domainId, domains.id))
 		.where(and(eq(domains.userId, domain.userId), or(eq(mailboxes.domainId, domain.id), eq(mailboxes.useAllDomains, true))));
 	const ruleCache: EmailRoutingRuleCache = new Map();
-	await Promise.allSettled(mailboxRows.map((mailbox) => ensureMailboxDomainRouting(env, db, { ...mailbox, useAllDomains: true }, undefined, ruleCache)));
+	await Promise.allSettled(mailboxRows.map((mailbox) => ensureMailboxDomainRouting(env, db, mailbox, undefined, ruleCache)));
 }
 
 export async function removeCloudflareReceiving(env: CloudflareEnv, domain: DomainRow): Promise<void> {
