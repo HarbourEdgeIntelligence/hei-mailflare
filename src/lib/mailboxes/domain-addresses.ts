@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { AppDatabase } from "@/db";
 import { domains, mailboxAliases, mailboxes } from "@/db/schema";
 import { deleteEmailRoutingRuleForAddress, ensureEmailRoutingRuleToWorker, type EmailRoutingRuleCache } from "@/lib/cloudflare-api";
-import { normalizeRecipientLocalPart } from "@/lib/email/recipient-address";
+import { normalizeRecipientLocalPart, parseRecipientAddress } from "@/lib/email/recipient-address";
 import type { MailboxDomainAddressInput } from "./domain-addresses-types";
 import type { CfEmailRoutingRuleChange } from "@/lib/cloudflare-api.types";
 
@@ -15,18 +15,51 @@ export const NEW_MAILBOX_USE_ALL_DOMAINS = false;
 export async function getMailboxAliasAddresses(
 	db: AppDatabase,
 	mailboxId: string,
+	includeDisabled = false,
 ): Promise<string[]> {
 	const aliases = await db
 		.select({ localPart: mailboxAliases.localPart, hostname: domains.hostname })
 		.from(mailboxAliases)
 		.innerJoin(domains, eq(mailboxAliases.domainId, domains.id))
-		.where(eq(mailboxAliases.mailboxId, mailboxId));
+		.where(
+			includeDisabled
+				? eq(mailboxAliases.mailboxId, mailboxId)
+				: and(eq(mailboxAliases.mailboxId, mailboxId), eq(mailboxAliases.enabled, true)),
+		);
 	return aliases.map((alias) => `${alias.localPart}@${alias.hostname}`.toLowerCase());
+}
+
+/** The alias row behind an address this mailbox can send as, if any. */
+export async function getMailboxAliasForAddress(
+	db: AppDatabase,
+	mailboxId: string,
+	address: string,
+	includeDisabled = false,
+): Promise<{ label: string | null; masked: boolean; enabled: boolean } | null> {
+	const parsed = parseRecipientAddress(address);
+	if (!parsed) return null;
+	const rows = await db
+		.select({
+			localPart: mailboxAliases.localPart,
+			label: mailboxAliases.label,
+			masked: mailboxAliases.masked,
+			enabled: mailboxAliases.enabled,
+		})
+		.from(mailboxAliases)
+		.innerJoin(domains, eq(mailboxAliases.domainId, domains.id))
+		.where(and(
+			eq(mailboxAliases.mailboxId, mailboxId),
+			...(includeDisabled ? [] : [eq(mailboxAliases.enabled, true)]),
+			eq(domains.hostname, parsed.domain),
+		));
+	const row = rows.find((item) => normalizeRecipientLocalPart(item.localPart) === parsed.localPart);
+	return row ? { label: row.label, masked: row.masked, enabled: row.enabled } : null;
 }
 
 export async function getMailboxDomainAddresses(
 	db: AppDatabase,
 	mailbox: MailboxDomainAddressInput,
+	includeDisabledAliases = false,
 ): Promise<string[]> {
 	const [primaryDomain] = await db
 		.select({ hostname: domains.hostname, userId: domains.userId })
@@ -36,7 +69,7 @@ export async function getMailboxDomainAddresses(
 	if (!primaryDomain) return [];
 
 	const primaryAddress = `${mailbox.localPart}@${primaryDomain.hostname}`.toLowerCase();
-	const aliasAddresses = await getMailboxAliasAddresses(db, mailbox.id);
+	const aliasAddresses = await getMailboxAliasAddresses(db, mailbox.id, includeDisabledAliases);
 	if (!mailbox.useAllDomains) {
 		return [...new Set([primaryAddress, ...aliasAddresses])];
 	}
@@ -57,17 +90,24 @@ export async function getMailboxDomainAddresses(
 			mailboxId: mailboxAliases.mailboxId,
 			domainId: mailboxAliases.domainId,
 			localPart: mailboxAliases.localPart,
+			enabled: mailboxAliases.enabled,
 		})
 		.from(mailboxAliases)
 		.where(inArray(mailboxAliases.domainId, candidateDomainIds));
 	const normalizedLocalPart = normalizeRecipientLocalPart(mailbox.localPart);
+	// A domain is taken when another mailbox or alias owns the same normalized
+	// local part on it, and also when this mailbox's own disabled alias does:
+	// without that, disabling the alias would still leave the implicit
+	// use-all-domains address sendable under the mailbox display name.
 	const assignedDomainIds = new Set(
 		[
 			...assignedMailboxes.filter(
 				(item) => item.id !== mailbox.id && normalizeRecipientLocalPart(item.localPart) === normalizedLocalPart,
 			),
 			...assignedAliases.filter(
-				(item) => item.mailboxId !== mailbox.id && normalizeRecipientLocalPart(item.localPart) === normalizedLocalPart,
+				(item) =>
+					(item.mailboxId !== mailbox.id || !item.enabled) &&
+					normalizeRecipientLocalPart(item.localPart) === normalizedLocalPart,
 			),
 		].map((item) => item.domainId),
 	);
@@ -90,7 +130,9 @@ export async function ensureMailboxDomainRouting(
 	changes?: CfEmailRoutingRuleChange[],
 	ruleCache: EmailRoutingRuleCache = new Map(),
 ): Promise<void> {
-	const addresses = await getMailboxDomainAddresses(db, mailbox);
+	// Cloudflare rules exist for disabled aliases too: the worker rejects their
+	// mail so disabling does not need a routing change, and re-enabling is free.
+	const addresses = await getMailboxDomainAddresses(db, mailbox, true);
 	if (addresses.length === 0) return;
 	const [primaryDomain] = await db
 		.select({ userId: domains.userId })
@@ -122,7 +164,9 @@ export async function removeMailboxDomainRouting(
 	db: AppDatabase,
 	mailbox: MailboxDomainAddressInput,
 ): Promise<void> {
-	const addresses = await getMailboxDomainAddresses(db, mailbox);
+	// Disabled aliases' rules must come down as well, or mail they own would
+	// fall through to a catch-all or use-all-domains mailbox after deletion.
+	const addresses = await getMailboxDomainAddresses(db, mailbox, true);
 	if (addresses.length === 0) return;
 	const [primaryDomain] = await db
 		.select({ userId: domains.userId })
