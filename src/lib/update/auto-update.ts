@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { appSettings } from "@/db/schema";
 import { applyPendingMigrations, getMigrationStatus } from "@/lib/migrations/service";
 import { isNodeRuntime } from "@/lib/runtime";
+import { SELF_UPDATE_ENABLED } from "@/lib/update/flags";
 import type { UpdateChannel } from "@/app/api/admin/update/types";
 import { dispatchUpdateWorkflow, getUpdateStatus } from "@/app/api/admin/update/utils";
 
@@ -31,6 +32,7 @@ export async function saveAutoUpdateSettings(env: CloudflareEnv, values: { enabl
  * run applies them; and when a newer release exists upstream it dispatches the update workflow once per version.
  */
 export async function runAutoUpdate(env: CloudflareEnv) {
+	if (!SELF_UPDATE_ENABLED) return;
 	if (isNodeRuntime(env)) return;
 	const settings = await getAutoUpdateSettings(env);
 	if (!settings.enabled) return;

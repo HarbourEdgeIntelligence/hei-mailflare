@@ -6,6 +6,7 @@ import { useLanguage } from "@/components/language-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SELF_UPDATE_ENABLED } from "@/lib/update/flags";
 import {
 	applyDatabaseMigrations,
 	getApplicationUpdateStatus,
@@ -22,7 +23,7 @@ export function AdminUpdateCard() {
 	const [error, setError] = useState("");
 	const [migrationError, setMigrationError] = useState("");
 	const [migrationStatus, setMigrationStatus] = useState<MigrationStatusResponse>();
-	const [isChecking, setIsChecking] = useState(true);
+	const [isChecking, setIsChecking] = useState(SELF_UPDATE_ENABLED);
 	const [isCheckingMigrations, setIsCheckingMigrations] = useState(true);
 	const [isPending, setIsPending] = useState(false);
 	const [isMigrating, setIsMigrating] = useState(false);
@@ -30,7 +31,7 @@ export function AdminUpdateCard() {
 	useEffect(() => {
 		let isActive = true;
 
-		getApplicationUpdateStatus()
+		if (SELF_UPDATE_ENABLED) getApplicationUpdateStatus()
 			.then((updateStatus) => {
 				if (isActive) setStatus(updateStatus);
 			})
